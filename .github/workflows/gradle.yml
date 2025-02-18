@@ -27,10 +27,7 @@ jobs:
         java-version: '21'
         distribution: 'zulu'
   
-    - name: checkout current repo
-      uses: actions/checkout@v4
-      with:
-        path: 'workspace/LevelledMobs'
+
 
     - name: checkout KujouMolean/FoliaAdapter
       uses: actions/checkout@v4
@@ -38,8 +35,22 @@ jobs:
         repository: 'KujouMolean/FoliaAdapter'
         path: 'workspace/FoliaAdapter'
 
-    - name: run maven install at FoliaAdapter
+    - name: run publishToMavenLocal at FoliaAdapter
       run: cd workspace/FoliaAdapter && sudo chmod +x ./gradlew && ./gradlew publishToMavenLocal
+      
+    - name: checkout boxbeam/Crunch
+      uses: actions/checkout@v4
+      with:
+        repository: 'boxbeam/Crunch'
+        path: 'workspace/Crunch'
+
+    - name: run publishToMavenLocal at Crunch
+      run: cd workspace/Crunch && sudo chmod +x ./gradlew && ./gradlew publishToMavenLocal
+
+    - name: checkout current repo
+      uses: actions/checkout@v4
+      with:
+        path: 'workspace/LevelledMobs'
 
     - name: build LevelledMobs
       run: cd workspace/LevelledMobs && sudo chmod +x ./gradlew && ./gradlew build
