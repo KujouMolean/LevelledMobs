@@ -59,9 +59,14 @@ jobs:
     - name: build LevelledMobs
       run: cd workspace/LevelledMobs && sudo chmod +x ./gradlew && ./gradlew build
 
-    - name: Upload build artifacts
+    - name: Upload LevelledMobs artifacts
       uses: actions/upload-artifact@v4
       with:
         name: Package
-        path: workspace/LevelledMobs/levelledmobs-plugin/build/libs/
+        path: workspace/LevelledMobs/levelledmobs-plugin/build/libs/LevelledMobs*.jar
 
+    - name: Upload FoliaAdapter artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: Package
+        path: workspace/FoliaAdapter/build/libs/FoliaAdapter.jar
