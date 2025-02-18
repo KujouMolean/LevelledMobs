@@ -39,10 +39,10 @@ jobs:
         path: 'workspace/FoliaAdapter'
 
     - name: run maven install at FoliaAdapter
-      run: cd workspace/FoliaAdapter && ./gradlew publishToMavenLocal
+      run: cd workspace/FoliaAdapter && sudo chmod +x ./gradlew && ./gradlew publishToMavenLocal
 
     - name: build LevelledMobs
-      run: cd workspace/LevelledMobs && ./gradlew build
+      run: cd workspace/LevelledMobs && sudo chmod +x ./gradlew && ./gradlew build
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
