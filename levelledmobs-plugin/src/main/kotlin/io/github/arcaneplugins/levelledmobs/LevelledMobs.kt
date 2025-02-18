@@ -1,5 +1,6 @@
 package io.github.arcaneplugins.levelledmobs
 
+import com.molean.folia.adapter.SchedulerContext
 import io.github.arcaneplugins.levelledmobs.commands.CommandHandler
 import io.github.arcaneplugins.levelledmobs.customdrops.CustomDropsHandler
 import io.github.arcaneplugins.levelledmobs.debug.DebugManager
@@ -29,7 +30,6 @@ import io.github.arcaneplugins.levelledmobs.util.MessageUtils
 import io.github.arcaneplugins.levelledmobs.util.QuickTimer
 import io.github.arcaneplugins.levelledmobs.util.Utils
 import io.github.arcaneplugins.levelledmobs.wrappers.LivingEntityWrapper
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerWrapper
 import java.time.Instant
 import java.util.Random
 import java.util.Stack
@@ -135,13 +135,10 @@ class LevelledMobs : JavaPlugin() {
             levelManager.startNametagAutoUpdateTask()
             levelManager.startNametagTimer()
 
-            if (!ver.isRunningFolia){
-                val scheduler = SchedulerWrapper {
-                    nametagQueueManager.taskChecker()
-                    mobsQueueManager.taskChecker()
-                }
-                scheduler.runTaskTimerAsynchronously(50000, 5000)
-            }
+            SchedulerContext.ofAsync().runTaskTimer(instance, {
+                nametagQueueManager.taskChecker()
+                mobsQueueManager.taskChecker()
+            }, 50000 / 50, 5000 / 50)
         }
 
         prepareToLoadCustomDrops()

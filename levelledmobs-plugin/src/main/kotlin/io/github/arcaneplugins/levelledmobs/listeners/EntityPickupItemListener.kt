@@ -1,9 +1,9 @@
 package io.github.arcaneplugins.levelledmobs.listeners
 
+import com.molean.folia.adapter.Folia
 import io.github.arcaneplugins.levelledmobs.LevelledMobs
 import io.github.arcaneplugins.levelledmobs.misc.PickedUpEquipment
 import io.github.arcaneplugins.levelledmobs.wrappers.LivingEntityWrapper
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerWrapper
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
@@ -35,12 +35,10 @@ class EntityPickupItemListener : Listener {
         // if you don't clone the item then it will change to air in the next function
         val itemStack = event.item.itemStack.clone()
         val pickedUpEquipment = PickedUpEquipment(lmEntity)
-        val wrapper = SchedulerWrapper(lmEntity.livingEntity) {
+        lmEntity.inUseCount.getAndIncrement()
+        Folia.runSync({
             pickedUpEquipment.checkEquipment(itemStack)
             lmEntity.free()
-        }
-
-        lmEntity.inUseCount.getAndIncrement()
-        wrapper.runDelayed(1L)
+        }, lmEntity.livingEntity)
     }
 }

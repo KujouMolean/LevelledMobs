@@ -1,5 +1,8 @@
 package io.github.arcaneplugins.levelledmobs.listeners
 
+import com.molean.folia.adapter.Folia
+import com.molean.folia.adapter.FoliaBatchEntityTask
+import com.molean.folia.adapter.SchedulerContext
 import io.github.arcaneplugins.levelledmobs.LevelledMobs
 import io.github.arcaneplugins.levelledmobs.commands.CommandHandler
 import io.github.arcaneplugins.levelledmobs.managers.NotifyManager
@@ -9,7 +12,6 @@ import io.github.arcaneplugins.levelledmobs.misc.PlayerQueueItem
 import io.github.arcaneplugins.levelledmobs.util.Log
 import io.github.arcaneplugins.levelledmobs.util.MessageUtils
 import io.github.arcaneplugins.levelledmobs.wrappers.LivingEntityWrapper
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerWrapper
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.entity.Entity
@@ -46,8 +48,8 @@ class PlayerJoinListener : Listener {
         main.nametagTimerChecker.addPlayerToQueue(PlayerQueueItem(event.player, true))
         parseUpdateChecker(event.player)
 
-        if (!LevelledMobs.instance.ver.isRunningFolia)
-            updateNametagsInWorldAsync(event.player, event.player.world.entities)
+
+        updateNametagsInWorldAsync(event.player, event.player.world.entities)
 
         if (event.player.isOp) {
             if (main.mainCompanion.hadRulesLoadError) {
@@ -151,9 +153,9 @@ class PlayerJoinListener : Listener {
     }
 
     private fun updateNametagsInWorldAsync(player: Player, entities: List<Entity>) {
-        val scheduler = SchedulerWrapper { updateNametagsInWorld(player, entities) }
-        scheduler.runDirectlyInFolia = true
-        scheduler.run()
+      SchedulerContext.ofAsync().runTask(main){
+          updateNametagsInWorld(player, entities)
+      }
     }
 
     private fun updateNametagsInWorld(player: Player, entities: List<Entity>) {
@@ -162,27 +164,32 @@ class PlayerJoinListener : Listener {
             main.maxPlayersRecorded = currentPlayers
         }
 
+        val task = FoliaBatchEntityTask.create()
+
         for (entity in entities) {
-            if (entity !is LivingEntity) {
-                continue
-            }
+           task.task(entity){
+               if (entity !is LivingEntity) {
+                   return@task
+               }
 
-            // mob must be alive
-            if (!entity.isValid()) {
-                continue
-            }
+               // mob must be alive
+               if (!entity.isValid()) {
+                   return@task
+               }
 
-            // mob must be levelled
-            if (!main.levelManager.isLevelled(entity)) {
-                continue
-            }
+               // mob must be levelled
+               if (!main.levelManager.isLevelled(entity)) {
+                   return@task
+               }
 
-            val lmEntity = LivingEntityWrapper.getInstance(entity)
+               val lmEntity = LivingEntityWrapper.getInstance(entity)
 
-            val nametag = main.levelManager.getNametag(lmEntity, isDeathNametag = false, preserveMobName = false)
-            main.levelManager.updateNametag(lmEntity, nametag, mutableListOf(player))
-            lmEntity.free()
+               val nametag = main.levelManager.getNametag(lmEntity, isDeathNametag = false, preserveMobName = false)
+               main.levelManager.updateNametag(lmEntity, nametag, mutableListOf(player))
+               lmEntity.free()
+           }
         }
+        task.start()
     }
 
     private fun parseUpdateChecker(player: Player) {

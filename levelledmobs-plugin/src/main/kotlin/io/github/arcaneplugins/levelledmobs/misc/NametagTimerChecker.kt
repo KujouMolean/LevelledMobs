@@ -1,9 +1,9 @@
 package io.github.arcaneplugins.levelledmobs.misc
 
+import com.molean.folia.adapter.Folia
 import io.github.arcaneplugins.levelledmobs.LevelledMobs
 import io.github.arcaneplugins.levelledmobs.enums.NametagVisibilityEnum
 import io.github.arcaneplugins.levelledmobs.wrappers.LivingEntityWrapper
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerWrapper
 import java.time.Duration
 import java.time.Instant
 import java.util.LinkedList
@@ -63,31 +63,18 @@ class NametagTimerChecker {
         coolDown: Map.Entry<Player, WeakHashMap<LivingEntity, Instant>>
     ) {
         val entitiesToRemove = mutableListOf<LivingEntity>()
-        val isRunningFolia = LevelledMobs.instance.ver.isRunningFolia
 
         for (livingEntity in coolDown.value.keys) {
-            if (isRunningFolia) {
-                livingEntity.scheduler.run(
-                    LevelledMobs.instance, {
-                        processCoolDownEntity(
-                            livingEntity,
-                            entitiesToRemove,
-                            player,
-                            coolDown
-                        )},
-                    null
-                )
-            }
-            else
-                processCoolDownEntity(livingEntity, entitiesToRemove, player, coolDown)
+            processCoolDownEntity(livingEntity, entitiesToRemove, player, coolDown)
         }
 
         for (livingEntity in entitiesToRemove) {
             coolDown.value.remove(livingEntity)
 
-            val wrapper = SchedulerWrapper(livingEntity) { updateNametag(livingEntity, player) }
-            wrapper.runDirectlyInBukkit = true
-            wrapper.run()
+            Folia.runSync({
+                updateNametag(livingEntity, player)
+            }, livingEntity)
+
         }
 
         entitiesToRemove.clear()

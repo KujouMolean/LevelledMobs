@@ -1,9 +1,9 @@
 package io.github.arcaneplugins.levelledmobs.util
 
+import com.molean.folia.adapter.SchedulerContext
 import java.io.InputStream
 import java.util.Scanner
 import java.util.function.Consumer
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerWrapper
 import java.io.FileNotFoundException
 import java.net.URI
 import org.bukkit.plugin.java.JavaPlugin
@@ -29,8 +29,9 @@ class UpdateChecker(
     fun getLatestVersion(
         consumer: Consumer<String?>
     ) {
-        val scheduler = SchedulerWrapper { checkVersion(consumer) }
-        scheduler.run()
+        SchedulerContext.ofAsync().runTask(plugin) {
+           checkVersion(consumer)
+        }
     }
 
     private fun checkVersion(

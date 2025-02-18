@@ -1,5 +1,6 @@
 package io.github.arcaneplugins.levelledmobs.listeners
 
+import com.molean.folia.adapter.Folia
 import io.github.arcaneplugins.levelledmobs.LevelledMobs
 import io.github.arcaneplugins.levelledmobs.MainCompanion
 import io.github.arcaneplugins.levelledmobs.debug.DebugManager
@@ -17,7 +18,6 @@ import io.github.arcaneplugins.levelledmobs.util.Log
 import io.github.arcaneplugins.levelledmobs.util.MiscUtils
 import io.github.arcaneplugins.levelledmobs.util.Utils
 import io.github.arcaneplugins.levelledmobs.wrappers.LivingEntityWrapper
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerWrapper
 import org.bukkit.Bukkit
 import org.bukkit.GameMode
 import org.bukkit.Location
@@ -155,13 +155,11 @@ class EntitySpawnListener : Listener{
         event: EntitySpawnEvent,
         delay: Int
     ) {
-        val scheduler = SchedulerWrapper {
+        lmEntity.inUseCount.getAndIncrement()
+        Folia.runSync({
             preProcessmob(lmEntity, event, delay)
             lmEntity.free()
-        }
-
-        lmEntity.inUseCount.getAndIncrement()
-        scheduler.runDelayed(delay.toLong())
+        }, lmEntity.livingEntity, delay.toLong())
     }
 
     private fun delayedAddToQueue(
@@ -169,14 +167,11 @@ class EntitySpawnListener : Listener{
         event: Event,
         delay: Int
     ) {
-        val scheduler = SchedulerWrapper {
+        lmEntity.inUseCount.getAndIncrement()
+        Folia.runSync({
             LevelledMobs.instance.mobsQueueManager.addToQueue(QueueItem(lmEntity, event))
             lmEntity.free()
-        }
-
-        lmEntity.inUseCount.getAndIncrement()
-        scheduler.entity = lmEntity.livingEntity
-        scheduler.runDelayed(delay.toLong())
+        }, lmEntity.livingEntity,delay.toLong())
     }
 
     private fun lmSpawnerSpawn(
@@ -248,15 +243,17 @@ class EntitySpawnListener : Listener{
     ) {
         val world = location.world ?: return
 
-        val scheduler = SchedulerWrapper {
-            try {
-                for (i in 0 until count) {
-                    world.spawnParticle(particle, location, 20, 0.0, 0.0, 0.0, 0.1)
-                    Thread.sleep(50)
+        Folia.runSync({
+            run {
+                try {
+                    for (i in 0 until count) {
+                        world.spawnParticle(particle, location, 20, 0.0, 0.0, 0.0, 0.1)
+                        Thread.sleep(50)
+                    }
+                } catch (ignored: InterruptedException) {
                 }
-            } catch (ignored: InterruptedException) { }
-        }
-        scheduler.run()
+            }
+        }, location)
     }
 
     fun processMob(
@@ -339,13 +336,13 @@ class EntitySpawnListener : Listener{
                 }
             } else {
                 if (lmEntity.reEvaluateLevel && main.rulesManager.isPlayerLevellingEnabled()) {
-                    val scheduler = SchedulerWrapper(lmEntity.livingEntity){
-                        updateMobForPlayerLevelling(lmEntity)
-                        lmEntity.free()
-                    }
-                    scheduler.runDirectlyInBukkit = true
                     lmEntity.inUseCount.getAndIncrement()
-                    scheduler.run()
+                    Folia.runSync({
+                        run {
+                            updateMobForPlayerLevelling(lmEntity)
+                            lmEntity.free()
+                        }
+                    }, lmEntity.livingEntity)
                 }
 
                 main.levelInterface.applyLevelToMob(
@@ -442,20 +439,17 @@ class EntitySpawnListener : Listener{
 
         fun updateMobForPlayerLevelling(lmEntity: LivingEntityWrapper) {
             val onlinePlayerCount = lmEntity.world.players.size
-
-            val wrapper = SchedulerWrapper(lmEntity.livingEntity){
-                updateMobForPlayerLevellingNonAsync(
-                    lmEntity,
-                    lmEntity.main.levelManager.entitySpawnListener.mobCheckDistance,
-                    onlinePlayerCount
-                )
-                lmEntity.free()
-            }
-
-            if (Bukkit.isPrimaryThread()) wrapper.runDirectlyInBukkit = true
-
             lmEntity.inUseCount.getAndIncrement()
-            wrapper.run()
+            Folia.runSync({
+                run {
+                    updateMobForPlayerLevellingNonAsync(
+                        lmEntity,
+                        lmEntity.main.levelManager.entitySpawnListener.mobCheckDistance,
+                        onlinePlayerCount
+                    )
+                    lmEntity.free()
+                }
+            }, lmEntity.livingEntity)
         }
 
         private fun updateMobForPlayerLevellingNonAsync(

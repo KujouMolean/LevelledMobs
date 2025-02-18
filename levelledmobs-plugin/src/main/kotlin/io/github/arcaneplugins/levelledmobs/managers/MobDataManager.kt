@@ -1,5 +1,6 @@
 package io.github.arcaneplugins.levelledmobs.managers
 
+import com.molean.folia.adapter.Folia
 import io.github.arcaneplugins.levelledmobs.LevelledMobs
 import io.github.arcaneplugins.levelledmobs.debug.DebugManager
 import io.github.arcaneplugins.levelledmobs.debug.DebugType
@@ -15,7 +16,6 @@ import io.github.arcaneplugins.levelledmobs.rules.FineTuningAttributes
 import io.github.arcaneplugins.levelledmobs.util.Log
 import io.github.arcaneplugins.levelledmobs.util.Utils
 import io.github.arcaneplugins.levelledmobs.wrappers.LivingEntityWrapper
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerWrapper
 import java.util.Collections
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
@@ -287,21 +287,19 @@ class MobDataManager {
     }
 
     fun getAllAttributeValues(lmEntity: LivingEntityWrapper, whichOnes: MutableList<Attribute>? = null){
-        if (LevelledMobs.instance.ver.isRunningFolia || Bukkit.isPrimaryThread()){
+        if (Bukkit.isPrimaryThread()){
             populateAttributeCache(lmEntity, whichOnes)
             return
         }
 
         val completableFuture = CompletableFuture<Boolean>()
-        val scheduler = SchedulerWrapper(lmEntity.livingEntity){
+        lmEntity.inUseCount.getAndIncrement()
+        Folia.runSync({
             populateAttributeCache(lmEntity, whichOnes)
             completableFuture.complete(true)
             lmEntity.free()
-        }
+        }, lmEntity.livingEntity)
 
-        lmEntity.inUseCount.getAndIncrement()
-        scheduler.entity = lmEntity.livingEntity
-        scheduler.run()
 
         completableFuture.get(5000L, TimeUnit.MILLISECONDS)
     }

@@ -1,5 +1,6 @@
 package io.github.arcaneplugins.levelledmobs.customdrops
 
+import com.molean.folia.adapter.Folia
 import io.github.arcaneplugins.levelledmobs.LevelledMobs
 import io.github.arcaneplugins.levelledmobs.debug.DebugManager
 import io.github.arcaneplugins.levelledmobs.managers.ExternalCompatibilityManager
@@ -17,7 +18,6 @@ import io.github.arcaneplugins.levelledmobs.util.PaperUtils
 import io.github.arcaneplugins.levelledmobs.util.SpigotUtils
 import io.github.arcaneplugins.levelledmobs.util.Utils
 import io.github.arcaneplugins.levelledmobs.wrappers.LivingEntityWrapper
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerWrapper
 import java.util.TreeMap
 import java.util.UUID
 import java.util.concurrent.ThreadLocalRandom
@@ -1268,8 +1268,9 @@ class CustomDropsHandler {
             if (customCommand.delay > 0) {
                 val commandToRun = command
                 val finalTimesToRun = timesToRun
-                val scheduler = SchedulerWrapper{ executeTheCommand(commandToRun, finalTimesToRun) }
-                scheduler.runDelayed(customCommand.delay.toLong())
+                Folia.runGlobally({
+                    executeTheCommand(commandToRun, finalTimesToRun)
+                }, customCommand.delay)
             }
             else
                 executeTheCommand(command, timesToRun)

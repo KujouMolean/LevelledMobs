@@ -1,5 +1,7 @@
 package io.github.arcaneplugins.levelledmobs.managers
 
+import com.molean.folia.adapter.Folia
+import com.molean.folia.adapter.SchedulerContext
 import java.time.Instant
 import java.util.WeakHashMap
 import java.util.concurrent.LinkedBlockingQueue
@@ -15,7 +17,7 @@ import io.github.arcaneplugins.levelledmobs.util.Log
 import io.github.arcaneplugins.levelledmobs.util.MessageUtils
 import io.github.arcaneplugins.levelledmobs.util.Utils
 import io.github.arcaneplugins.levelledmobs.wrappers.LivingEntityWrapper
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerWrapper
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask
 import org.bukkit.Bukkit
 import org.bukkit.entity.LivingEntity
 import org.bukkit.entity.Player
@@ -32,7 +34,7 @@ class NametagQueueManager {
     private var doThread = false
     private var nametagSender: NametagSender? = null
     private var hasLibsDisguisesInstalled = false
-    var queueTask: BukkitTask? = null
+    var queueTask: ScheduledTask? = null
     private val queue = LinkedBlockingQueue<QueueItem>()
     val nametagSenderHandler = NametagSenderHandler()
     private val queueLock = Any()
@@ -46,20 +48,17 @@ class NametagQueueManager {
         get() = this.nametagSender != null
 
     fun start() {
-        // folia will run directly
-        if (LevelledMobs.instance.ver.isRunningFolia) return
-
         if (isRunning) return
 
         doThread = true
         isRunning = true
 
-        val scheduler = SchedulerWrapper {
+        this.queueTask = SchedulerContext.ofAsync().runTask(LevelledMobs.instance) {
             var hadError = false
             try {
                 mainThread()
             } catch (e: Exception) {
-                if (e !is InterruptedException){
+                if (e !is InterruptedException) {
                     hadError = true
                     e.printStackTrace()
                 }
@@ -71,8 +70,7 @@ class NametagQueueManager {
 
             isRunning = false
         }
-        scheduler.run()
-        this.queueTask = scheduler.bukkitTask
+
     }
 
     fun stop() {
@@ -84,7 +82,7 @@ class NametagQueueManager {
 
         val queueSize = getNumberQueued()
 
-        if (queueSize < 1000 && !qt.isCancelled || Bukkit.getScheduler().isCurrentlyRunning(qt.taskId)) return
+        if (queueSize < 1000 && !qt.isCancelled || qt.executionState == ScheduledTask.ExecutionState.RUNNING) return
         val status = if (qt.isCancelled) "cancelled"
         else if (queueSize < 1000) "not running"
         else "queue size was $queueSize"
@@ -103,14 +101,8 @@ class NametagQueueManager {
 
         item.lmEntity.inUseCount.getAndIncrement()
 
-        if (LevelledMobs.instance.ver.isRunningFolia){
-            // folia runs directly
-            preProcessItem(item)
-        }
-        else{
-            synchronized(queueLock){
-                queue.offer(item)
-            }
+        synchronized(queueLock){
+            queue.offer(item)
         }
     }
 
@@ -135,17 +127,13 @@ class NametagQueueManager {
                 continue
             }
 
-            val scheduler = SchedulerWrapper(
-                item.lmEntity.livingEntity
-            ) {
+
+            item.lmEntity.inUseCount.getAndIncrement()
+            Folia.runSync({
                 preProcessItem(item)
                 item.lmEntity.free()
-            }
+            }, item.lmEntity.livingEntity)
 
-            scheduler.runDirectlyInBukkit = true
-            scheduler.entity = item.lmEntity.livingEntity
-            item.lmEntity.inUseCount.getAndIncrement()
-            scheduler.run()
         }
 
         isRunning = false

@@ -1,5 +1,7 @@
 package io.github.arcaneplugins.levelledmobs.commands.subcommands
 
+import com.molean.folia.adapter.Folia
+import com.molean.folia.adapter.FoliaBatchEntityTask
 import dev.jorel.commandapi.CommandAPICommand
 import dev.jorel.commandapi.SuggestionInfo
 import dev.jorel.commandapi.arguments.ListArgumentBuilder
@@ -29,6 +31,7 @@ import org.bukkit.entity.Tameable
 import org.bukkit.entity.Zombie
 import org.bukkit.entity.ZombieVillager
 import org.bukkit.metadata.FixedMetadataValue
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Allows you to kill LevelledMobs with various options including all levelled mobs, specific worlds
@@ -76,17 +79,13 @@ object KillSubcommand {
         input: CommandArguments,
         isAll: Boolean
     ){
-        //TODO: make this work in Folia
-        if (LevelledMobs.instance.ver.isRunningFolia) {
-            sender.sendMessage("Sorry this command doesn't work in Folia")
-            return
-        }
-
         val values = input.rawArgsMap["values"]
         if (values == null) {
             if (sender is Player) {
                 if (isAll)
-                    processKillAll(sender, mutableListOf(sender.world), false, null)
+                   Folia.runGlobally {
+                       processKillAll(sender, mutableListOf(sender.world), false, null)
+                   }
                 else
                     MessagesHelper.showMessage(sender, "command.levelledmobs.kill.near.usage")
             } else {
@@ -356,43 +355,47 @@ object KillSubcommand {
         rl: RequestedLevel?
     ) {
         LevelledMobs.instance.mobsQueueManager.clearQueue()
-        var killed = 0
-        var skipped = 0
-
+        val killed = AtomicInteger(0)
+        val skipped = AtomicInteger(0)
+        val task = FoliaBatchEntityTask.create()
         for (world in worlds) {
             for (entity in world.entities) {
-                if (entity !is LivingEntity) {
-                    continue
-                }
-                if (!LevelledMobs.instance.levelInterface.isLevelled(entity)) {
-                    continue
-                }
+                task.task(entity){
+                    if (entity !is LivingEntity) {
+                        return@task
+                    }
+                    if (!LevelledMobs.instance.levelInterface.isLevelled(entity)) {
+                        return@task
+                    }
 
-                if (skipKillingEntity(entity, rl)) {
-                    skipped++
-                    continue
+                    if (skipKillingEntity(entity, rl)) {
+                        skipped.incrementAndGet()
+                        return@task
+                    }
+
+                    entity.setMetadata("noCommands", FixedMetadataValue(LevelledMobs.instance, 1))
+
+                    if (useNoDrops) {
+                        entity.remove()
+                    } else {
+                        entity.health = 0.0
+                    }
+
+                    killed.incrementAndGet()
                 }
-
-                entity.setMetadata("noCommands", FixedMetadataValue(LevelledMobs.instance, 1))
-
-                if (useNoDrops) {
-                    entity.remove()
-                } else {
-                    entity.health = 0.0
-                }
-
-                killed++
             }
         }
 
-        MessagesHelper.showMessage(sender,
-            "command.levelledmobs.kill.all.success",
-            arrayOf("%killed%", "%skipped%", "%worlds%"),
-            arrayOf(
-                killed.toString(), skipped.toString(),
-                worlds.size.toString()
+        task.start().thenRun{
+            MessagesHelper.showMessage(sender,
+                "command.levelledmobs.kill.all.success",
+                arrayOf("%killed%", "%skipped%", "%worlds%"),
+                arrayOf(
+                    killed.toString(), skipped.toString(),
+                    worlds.size.toString()
+                )
             )
-        )
+        }
     }
 
     private fun skipKillingEntity(

@@ -1,5 +1,6 @@
 package io.github.arcaneplugins.levelledmobs.listeners
 
+import com.molean.folia.adapter.FoliaRunnable
 import io.github.arcaneplugins.levelledmobs.LevelledMobs
 import io.github.arcaneplugins.levelledmobs.misc.NamespacedKeys
 import io.github.arcaneplugins.levelledmobs.util.Log
@@ -38,7 +39,7 @@ class PlayerPortalEventListener : Listener {
         main.mainCompanion.setPlayerNetherPortalLocation(player, event.to)
         val locationStr = "${event.to.world.name},${event.to.blockX},${event.to.blockY},${event.to.blockZ}"
 
-        val runnable: BukkitRunnable = object : BukkitRunnable() {
+        val runnable: FoliaRunnable = object : FoliaRunnable() {
             override fun run() {
                 if (isToNether) {
                     main.mainCompanion.setPlayerNetherPortalLocation(player, player.location)
@@ -70,6 +71,6 @@ class PlayerPortalEventListener : Listener {
 
         // for some reason event#getTo has different coords that the actual nether portal
         // delay for 1 ticket and grab the player location instead
-        runnable.runTaskLater(main, 1L)
+        runnable.runTaskLater(main, player, 1L)
     }
 }

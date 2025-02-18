@@ -1,5 +1,8 @@
 package io.github.arcaneplugins.levelledmobs.managers
 
+import com.molean.folia.adapter.Folia
+import com.molean.folia.adapter.FoliaBatchEntityTask
+import com.molean.folia.adapter.SchedulerContext
 import io.github.arcaneplugins.levelledmobs.LevelInterface2
 import io.github.arcaneplugins.levelledmobs.LevelledMobs
 import io.github.arcaneplugins.levelledmobs.LivingEntityInterface
@@ -39,8 +42,6 @@ import io.github.arcaneplugins.levelledmobs.util.MiscUtils
 import io.github.arcaneplugins.levelledmobs.util.MythicMobUtils
 import io.github.arcaneplugins.levelledmobs.util.Utils
 import io.github.arcaneplugins.levelledmobs.wrappers.LivingEntityWrapper
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerResult
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerWrapper
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask
 import java.time.Duration
 import java.time.Instant
@@ -48,9 +49,7 @@ import java.time.temporal.ChronoUnit
 import java.util.Collections
 import java.util.WeakHashMap
 import java.util.concurrent.ThreadLocalRandom
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.function.Consumer
 import org.bukkit.Bukkit
 import org.bukkit.GameMode
 import org.bukkit.Material
@@ -92,8 +91,8 @@ class LevelManager : LevelInterface2 {
     var doCheckMobHash = false
     private var lastLEWCacheClearing: Instant? = null
     val entitySpawnListener = EntitySpawnListener()
-    private var nametagAutoUpdateTask: SchedulerResult? = null
-    private var nametagTimerTask: SchedulerResult? = null
+    private var nametagAutoUpdateTask: ScheduledTask? = null
+    private var nametagTimerTask: ScheduledTask? = null
     private val asyncRunningCount = AtomicInteger()
     private val entitiesPerPlayer = mutableMapOf<Player, MutableList<Entity>>()
     private val entitiesPerPlayerLock = Any()
@@ -1021,13 +1020,11 @@ class LevelManager : LevelInterface2 {
     }
 
     fun updateNametagWithDelay(lmEntity: LivingEntityWrapper) {
-        val scheduler = SchedulerWrapper(lmEntity.livingEntity) {
+        lmEntity.inUseCount.getAndIncrement()
+        Folia.runSync({
             updateNametag(lmEntity)
             lmEntity.free()
-        }
-
-        lmEntity.inUseCount.getAndIncrement()
-        scheduler.runDelayed(1L)
+        }, lmEntity.livingEntity)
     }
 
     fun updateNametag(lmEntity: LivingEntityWrapper) {
@@ -1074,14 +1071,7 @@ class LevelManager : LevelInterface2 {
             checkLEWCache()
             enumerateNearbyEntities()
         }
-
-        if (main.ver.isRunningFolia) {
-            val task = Consumer { _: ScheduledTask? -> runnable.run() }
-            nametagTimerTask =
-                SchedulerResult(Bukkit.getAsyncScheduler().runAtFixedRate(main, task, 0, period, TimeUnit.SECONDS))
-        } else {
-            nametagTimerTask = SchedulerResult(Bukkit.getScheduler().runTaskTimer(main, runnable, 0, 20 * period))
-        }
+        nametagTimerTask = Folia.getScheduler().runTaskTimerGlobally(main, runnable, 0, 20 * period)
     }
 
     private fun checkLEWCache() {
@@ -1111,70 +1101,46 @@ class LevelManager : LevelInterface2 {
         var checkDistance = entitySpawnListener.mobCheckDistance.toDouble()
 
         for (player in Bukkit.getOnlinePlayers()) {
-            if (LevelledMobs.instance.ver.isRunningFolia) {
-                asyncRunningCount.getAndIncrement()
-                val scheduler = SchedulerWrapper(player) {
-                    checkDistance = MiscUtils.retrieveLoadedChunkRadius(player.location, checkDistance)
+            Folia.runSync({
+                run {
+                    MiscUtils.retrieveLoadedChunkRadius(player.location, checkDistance)
                     val entities = player.getNearbyEntities(
                         checkDistance, checkDistance, checkDistance
                     )
-                    synchronized(entitiesPerPlayerLock) {
-                        entitiesPerPlayer.put(player, entities)
-                    }
-
-                    asyncRunningCount.getAndDecrement()
-                    if (asyncRunningCount.get() == 0) runNametagCheckASync()
+                    entitiesPerPlayer[player] = entities
+                    runNametagCheckASync()
                 }
-                scheduler.run()
-            } else {
-                val entities = player.getNearbyEntities(
-                    checkDistance, checkDistance, checkDistance
-                )
-                entitiesPerPlayer[player] = entities
-                runNametagCheckASync()
-            }
+            }, player)
         }
     }
 
     fun startNametagTimer() {
-        val scheduler = SchedulerWrapper {  LevelledMobs.instance.nametagTimerChecker.checkNametags() }
-        scheduler.runTaskTimerAsynchronously(0, 1000)
+        SchedulerContext.ofAsync().runTaskTimer(LevelledMobs.instance, {
+            LevelledMobs.instance.nametagTimerChecker.checkNametags()
+        }, 0, 1000 / 50)
     }
 
     private fun runNametagCheckASync() {
         val entityToPlayer = ConcurrentHashMap<LivingEntityWrapper, MutableList<Player>>()
 
-        if (LevelledMobs.instance.ver.isRunningFolia) {
-            for (player in entitiesPerPlayer.keys) {
-                for (entity in entitiesPerPlayer[player]!!) {
-                    val task =
-                        Consumer { _: ScheduledTask? ->
-                            checkEntity(
-                                entity,
-                                player,
-                                entityToPlayer
-                            )
-                        }
-                    entity.scheduler.run(LevelledMobs.instance, task, null)
-                }
-            }
-        } else {
-            for (player in entitiesPerPlayer.keys) {
-                for (entity in entitiesPerPlayer[player]!!) {
-                    checkEntity(entity, player, entityToPlayer)
-                }
+        val task = FoliaBatchEntityTask.create()
+        for (player in entitiesPerPlayer.keys) {
+            for (entity in entitiesPerPlayer[player]!!) {
+                task.task(player) { t -> checkEntity(t, player, entityToPlayer) }
             }
         }
 
-        for ((lmEntity, value) in entityToPlayer) {
-            if (entityToPlayer.containsKey(lmEntity)) {
-                checkEntityForPlayerLevelling(lmEntity, value)
+        task.start().thenRun {
+            for ((lmEntity, value) in entityToPlayer) {
+                if (entityToPlayer.containsKey(lmEntity)) {
+                    checkEntityForPlayerLevelling(lmEntity, value)
+                }
+
+                lmEntity.free()
             }
 
-            lmEntity.free()
+            entitiesPerPlayer.clear()
         }
-
-        entitiesPerPlayer.clear()
     }
 
     private fun checkEntity(
@@ -1454,11 +1420,11 @@ class LevelManager : LevelInterface2 {
 
         if (nametagAutoUpdateTask != null && !nametagAutoUpdateTask!!.isCancelled()) {
             Log.inf("&fTasks: &7Stopping async nametag auto update task...")
-            nametagAutoUpdateTask!!.cancelTask()
+            nametagAutoUpdateTask!!.cancel()
         }
 
         if (nametagTimerTask != null && !nametagTimerTask!!.isCancelled()) {
-            nametagTimerTask!!.cancelTask()
+            nametagTimerTask!!.cancel()
         }
     }
 
@@ -1502,7 +1468,8 @@ class LevelManager : LevelInterface2 {
             if (result != null) modInfo.add(result)
         }
 
-        val scheduler = SchedulerWrapper(lmEntity.livingEntity){
+        lmEntity.inUseCount.getAndIncrement()
+        Folia.runSync({
             MobDataManager.instance.setAttributeMods(lmEntity, modInfo)
 
             if (lmEntity.lockEntitySettings) {
@@ -1531,10 +1498,7 @@ class LevelManager : LevelInterface2 {
             }
 
             lmEntity.free()
-        }
-        lmEntity.inUseCount.getAndIncrement()
-        scheduler.runDirectlyInFolia = true
-        scheduler.run()
+        }, lmEntity.livingEntity)
     }
 
     private fun applyCreeperBlastRadius(lmEntity: LivingEntityWrapper) {
@@ -1610,19 +1574,15 @@ class LevelManager : LevelInterface2 {
             return
         }
 
-        if (LevelledMobs.instance.ver.isRunningFolia){
-            applyLevelledEquipmentNonAsync(lmEntity, customDropsRuleSet)
-            return
-        }
-
-        val scheduler = SchedulerWrapper {
-            applyLevelledEquipmentNonAsync(lmEntity, customDropsRuleSet)
-            lmEntity.free()
-        }
 
         lmEntity.inUseCount.getAndIncrement()
-        scheduler.entity = lmEntity.livingEntity
-        scheduler.run()
+
+        Folia.runSync(
+            {
+                applyLevelledEquipmentNonAsync(lmEntity, customDropsRuleSet)
+                lmEntity.free()
+            }, lmEntity.livingEntity
+        )
     }
 
     private fun applyLevelledEquipmentNonAsync(
@@ -1839,13 +1799,12 @@ class LevelManager : LevelInterface2 {
         // this thread runs in async.  if adding any functions make sure they can be run in this fashion
         val main = LevelledMobs.instance
 
-        if (!main.ver.isRunningFolia && Bukkit.isPrimaryThread()){
-            val scheduler = SchedulerWrapper{
+        if (Bukkit.isPrimaryThread()){
+            lmEntity.inUseCount.getAndIncrement()
+            Folia.runSync({
                 applyLevelToMob(lmEntity, level, isSummoned, bypassLimits, additionalLevelInformation)
                 lmEntity.free()
-            }
-            lmEntity.inUseCount.getAndIncrement()
-            scheduler.run()
+            }, lmEntity.livingEntity)
             return
         }
 

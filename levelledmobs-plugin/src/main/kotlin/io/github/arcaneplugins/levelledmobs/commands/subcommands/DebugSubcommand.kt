@@ -19,6 +19,7 @@ import io.github.arcaneplugins.levelledmobs.util.Log
 import io.github.arcaneplugins.levelledmobs.util.MessageUtils
 import io.github.arcaneplugins.levelledmobs.util.Utils
 import io.github.arcaneplugins.levelledmobs.wrappers.LivingEntityWrapper
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask.ExecutionState
 import java.util.Locale
 import java.util.TreeSet
 import org.bukkit.Bukkit
@@ -257,13 +258,13 @@ object DebugSubcommand {
         val nametagQueueNum = LevelledMobs.instance.nametagQueueManager.getNumberQueued()
         val nametagQueueTask = LevelledMobs.instance.nametagQueueManager.queueTask
         val mobQueueNum = LevelledMobs.instance.mobsQueueManager.getNumberQueued()
-        val isNametagTaskRunning = if (nametagQueueTask != null) Bukkit.getScheduler().isCurrentlyRunning(nametagQueueTask.taskId) else false
-        val nametagtaskStatus = if (nametagQueueTask == null) "(null)" else "id: ${nametagQueueTask.taskId}, is running: $isNametagTaskRunning, is cancelled: ${nametagQueueTask.isCancelled}"
+        val isNametagTaskRunning = if (nametagQueueTask != null) nametagQueueTask.executionState == ExecutionState.RUNNING else false
+        val nametagtaskStatus = if (nametagQueueTask == null) "(null)" else "id: ${nametagQueueTask.hashCode()}, is running: $isNametagTaskRunning, is cancelled: ${nametagQueueTask.isCancelled}"
         val mobsTaskStatus = StringBuilder()
-        for (task in LevelledMobs.instance.mobsQueueManager.queueTasks.values){
-            val isRunning = Bukkit.getScheduler().isCurrentlyRunning(task.taskId)
+        for (task in LevelledMobs.instance.mobsQueueManager.queueTasks){
+            val isRunning = task.executionState == ExecutionState.RUNNING
             mobsTaskStatus.append("\n   ")
-            mobsTaskStatus.append("id: ${task.taskId}, is running: $isRunning, is cancelled: ${task.isCancelled}")
+            mobsTaskStatus.append("id: ${task.hashCode()}, is running: $isRunning, is cancelled: ${task.isCancelled}")
         }
 
         sender.sendMessage("Nametag Manager items: $nametagQueueNum, Mob Queue Manager items: $mobQueueNum\n" +

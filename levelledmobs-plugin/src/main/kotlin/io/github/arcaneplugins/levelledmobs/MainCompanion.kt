@@ -1,5 +1,7 @@
 package io.github.arcaneplugins.levelledmobs
 
+import com.molean.folia.adapter.Folia
+import com.molean.folia.adapter.FoliaUtils
 import io.github.arcaneplugins.levelledmobs.compatibility.Compat119
 import io.github.arcaneplugins.levelledmobs.compatibility.Compat119.getAquaticMobs
 import io.github.arcaneplugins.levelledmobs.compatibility.Compat120
@@ -31,8 +33,7 @@ import io.github.arcaneplugins.levelledmobs.util.MessageUtils
 import io.github.arcaneplugins.levelledmobs.util.UpdateChecker
 import io.github.arcaneplugins.levelledmobs.util.Utils.colorizeAllInList
 import io.github.arcaneplugins.levelledmobs.util.Utils.replaceAllInList
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerResult
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerWrapper
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask
 import java.io.File
 import java.io.InvalidObjectException
 import java.time.Duration
@@ -81,7 +82,7 @@ class MainCompanion{
     private val pluginManager = Bukkit.getPluginManager()
     private val metricsInfo = MetricsInfo()
     val externalCompatibilityManager = ExternalCompatibilityManager()
-    private var hashMapCleanUp: SchedulerResult? = null
+    private var hashMapCleanUp: ScheduledTask? = null
     private val playerLogonTimesLock = Any()
     private val playerNetherPortalsLock = Any()
     private val entityDeathInChunkCounterLock = Any()
@@ -309,16 +310,14 @@ class MainCompanion{
     }
 
     fun startCleanupTask() {
-        val scheduler = SchedulerWrapper {
+        Folia.getScheduler().runTaskTimerAsynchronously(LevelledMobs.instance, Runnable {
             synchronized(entityDeathInChunkCounterLock) {
                 chunkKillLimitCleanup()
             }
             synchronized(entityDeathInChunkNotifierLock) {
                 chunkKillNoticationCleanup()
             }
-        }
-
-        this.hashMapCleanUp = scheduler.runTaskTimerAsynchronously(5000, 2000)
+        }, 5000/50, 2000/50)
     }
 
     private fun chunkKillLimitCleanup() {
@@ -560,10 +559,8 @@ class MainCompanion{
         val main = LevelledMobs.instance
         main.mobsQueueManager.stop()
         main.nametagQueueManager.stop()
-        hashMapCleanUp?.cancelTask()
-        if (!main.ver.isRunningFolia) {
-            Bukkit.getScheduler().cancelTasks(main)
-        }
+        hashMapCleanUp?.cancel()
+        FoliaUtils.cancelTasks(main)
     }
 
     private fun buildUniversalGroups() {

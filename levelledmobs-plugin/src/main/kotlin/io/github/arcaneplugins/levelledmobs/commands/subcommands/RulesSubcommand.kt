@@ -1,5 +1,7 @@
 package io.github.arcaneplugins.levelledmobs.commands.subcommands
 
+import com.molean.folia.adapter.Folia
+import com.molean.folia.adapter.FoliaBatchEntityTask
 import dev.jorel.commandapi.CommandAPICommand
 import dev.jorel.commandapi.arguments.ArgumentSuggestions
 import dev.jorel.commandapi.arguments.ListArgumentBuilder
@@ -27,7 +29,6 @@ import io.github.arcaneplugins.levelledmobs.util.MessageUtils.colorizeAll
 import io.github.arcaneplugins.levelledmobs.util.PaperUtils
 import io.github.arcaneplugins.levelledmobs.util.SpigotUtils
 import io.github.arcaneplugins.levelledmobs.wrappers.LivingEntityWrapper
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerWrapper
 import java.io.File
 import java.io.IOException
 import java.nio.charset.StandardCharsets
@@ -171,12 +172,6 @@ object RulesSubcommand {
     }
 
     private fun forceRelevel(sender: CommandSender) {
-        //TODO: make this work in Folia
-        if (LevelledMobs.instance.ver.isRunningFolia) {
-            sender.sendMessage("Sorry this command doesn't work in Folia")
-            return
-        }
-
         var worldCount = 0
         var entityCount = 0
         val main = LevelledMobs.instance
@@ -184,44 +179,51 @@ object RulesSubcommand {
         main.reloadLM(sender)
         val isUsingPlayerLevelling = main.rulesManager.isPlayerLevellingEnabled()
 
-        for (world in Bukkit.getWorlds()) {
-            worldCount++
-            for (entity in world.entities) {
-                if (entity !is LivingEntity || entity is Player) {
-                    continue
+        Folia.runGlobally{
+            val task = FoliaBatchEntityTask.create()
+            for (world in Bukkit.getWorlds()) {
+                worldCount++
+                for (entity in world.entities) {
+                   task.task(entity){
+                       if (entity !is LivingEntity || entity is Player) {
+                           return@task
+                       }
+
+                       var doContinue = false
+                       synchronized(entity.getPersistentDataContainer()) {
+                           if (entity.getPersistentDataContainer().has(
+                                   NamespacedKeys.wasSummoned,
+                                   PersistentDataType.INTEGER
+                               )
+                           ) {
+                               doContinue = true  // was summon using lm summon command.  don't relevel it
+                           }
+                       }
+                       if (doContinue) return@task
+
+                       entityCount++
+                       val lmEntity = LivingEntityWrapper.getInstance(entity)
+                       lmEntity.reEvaluateLevel = true
+                       lmEntity.isRulesForceAll = true
+                       lmEntity.wasPreviouslyLevelled = lmEntity.isLevelled
+                       if (isUsingPlayerLevelling)
+                           EntitySpawnListener.updateMobForPlayerLevelling(lmEntity)
+
+                       main.mobsQueueManager.addToQueue(QueueItem(lmEntity, null))
+                       lmEntity.free()
+                   }
                 }
-
-                var doContinue = false
-                synchronized(entity.getPersistentDataContainer()) {
-                    if (entity.getPersistentDataContainer().has(
-                                NamespacedKeys.wasSummoned,
-                                PersistentDataType.INTEGER
-                            )
-                    ) {
-                        doContinue = true  // was summon using lm summon command.  don't relevel it
-                    }
-                }
-                if (doContinue) continue
-
-                entityCount++
-                val lmEntity = LivingEntityWrapper.getInstance(entity)
-                lmEntity.reEvaluateLevel = true
-                lmEntity.isRulesForceAll = true
-                lmEntity.wasPreviouslyLevelled = lmEntity.isLevelled
-                if (isUsingPlayerLevelling)
-                    EntitySpawnListener.updateMobForPlayerLevelling(lmEntity)
-
-                main.mobsQueueManager.addToQueue(QueueItem(lmEntity, null))
-                lmEntity.free()
             }
-        }
 
-        showMessage(
-            sender,
-            "command.levelledmobs.rules.rules-reprocessed",
-            arrayOf("%entitycount%", "%worldcount%"),
-            arrayOf(entityCount.toString(), worldCount.toString())
-        )
+           task.start().thenRun{
+               showMessage(
+                   sender,
+                   "command.levelledmobs.rules.rules-reprocessed",
+                   arrayOf("%entitycount%", "%worldcount%"),
+                   arrayOf(entityCount.toString(), worldCount.toString())
+               )
+           }
+        }
     }
 
     private fun resetRules(
@@ -466,14 +468,12 @@ object RulesSubcommand {
             mobHash = lmEntity.pdc.get(NamespacedKeys.mobHash, PersistentDataType.STRING)
         }
 
-        val scheduler = SchedulerWrapper(lmEntity.livingEntity) {
+        Folia.runSync({
             showEffectiveValues(sender, lmEntity, showOnConsole, mobHash)
             lmEntity.free()
             if (showOnConsole) sender.sendMessage("Effective rules have been printed in the console")
-        }
-
+        }, lmEntity.livingEntity)
         lmEntity.inUseCount.getAndIncrement()
-        scheduler.runDelayed(25L)
     }
 
     fun getMobBeingLookedAt(
@@ -523,9 +523,10 @@ object RulesSubcommand {
     private fun createParticleEffect(location: Location) {
         val world = location.world ?: return
 
-        val scheduler = SchedulerWrapper { spawnParticles(location, world) }
-        scheduler.locationForRegionScheduler = location
-        scheduler.run()
+        Folia.runSync({
+            spawnParticles(location, world)
+        }, location)
+
     }
 
     private fun spawnParticles(location: Location, world: World) {

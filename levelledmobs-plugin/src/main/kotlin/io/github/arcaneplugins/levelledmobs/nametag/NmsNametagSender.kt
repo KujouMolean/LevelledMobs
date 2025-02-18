@@ -1,5 +1,6 @@
 package io.github.arcaneplugins.levelledmobs.nametag
 
+import com.molean.folia.adapter.Folia
 import io.github.arcaneplugins.levelledmobs.LevelledMobs
 import io.github.arcaneplugins.levelledmobs.nametag.ComponentUtils.appendComponents
 import io.github.arcaneplugins.levelledmobs.nametag.ComponentUtils.getTextComponent
@@ -7,7 +8,6 @@ import io.github.arcaneplugins.levelledmobs.nametag.ComponentUtils.getTranslatab
 import io.github.arcaneplugins.levelledmobs.nametag.KyoriNametags.generateComponent
 import io.github.arcaneplugins.levelledmobs.result.NametagResult
 import io.github.arcaneplugins.levelledmobs.util.MessageUtils.colorizeAll
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerWrapper
 import java.lang.reflect.InvocationTargetException
 import java.util.LinkedList
 import java.util.Optional
@@ -32,14 +32,9 @@ class NmsNametagSender : NametagSender {
     ) {
         if (!player.isOnline || !player.isValid) return
 
-        if (LevelledMobs.instance.ver.isRunningFolia)
+        Folia.runSync({
             sendNametagNonAsync(livingEntity, nametag, player, alwaysVisible)
-        else{
-            val scheduler = SchedulerWrapper(livingEntity) {
-                sendNametagNonAsync(livingEntity, nametag, player, alwaysVisible)
-            }
-            scheduler.run()
-        }
+        }, livingEntity)
     }
 
     fun refresh() {

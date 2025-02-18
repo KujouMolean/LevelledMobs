@@ -1,10 +1,10 @@
 package io.github.arcaneplugins.levelledmobs.util
 
+import com.molean.folia.adapter.Folia
 import me.libraryaddict.disguise.DisguiseAPI
 import me.libraryaddict.disguise.disguisetypes.Disguise
 import io.github.arcaneplugins.levelledmobs.managers.ExternalCompatibilityManager
 import io.github.arcaneplugins.levelledmobs.wrappers.LivingEntityWrapper
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerWrapper
 
 /**
  * Various methods for detecting or updating mobs using
@@ -43,12 +43,10 @@ object LibsDisguisesUtils {
         if (!isMobUsingLibsDisguises(lmEntity)) return
 
         val disguise = lmEntity.libsDisguiseCache as Disguise
-        val wrapper = SchedulerWrapper(lmEntity.livingEntity) {
+        lmEntity.inUseCount.getAndIncrement()
+        Folia.runSync({
             disguise.watcher.customName = nametag
             lmEntity.free()
-        }
-
-        lmEntity.inUseCount.getAndIncrement()
-        wrapper.run()
+        }, lmEntity.livingEntity)
     }
 }

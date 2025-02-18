@@ -10,8 +10,7 @@ import io.github.arcaneplugins.levelledmobs.rules.RuleInfo
 import io.github.arcaneplugins.levelledmobs.util.Log
 import io.github.arcaneplugins.levelledmobs.util.MessageUtils.colorizeAll
 import io.github.arcaneplugins.levelledmobs.wrappers.LivingEntityWrapper
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerResult
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerWrapper
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask
 import java.util.UUID
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
@@ -19,6 +18,7 @@ import org.bukkit.entity.Entity
 import org.bukkit.entity.EntityType
 import org.bukkit.entity.Player
 import org.bukkit.event.HandlerList
+import java.util.concurrent.TimeUnit
 import kotlin.math.floor
 
 /**
@@ -36,7 +36,7 @@ class DebugManager {
     var bypassAllFilters = false
         private set
     private var timerEndTime: Instant? = null
-    private var timerTask: SchedulerResult? = null
+    private var timerTask: ScheduledTask? = null
     val filterDebugTypes = mutableSetOf<DebugType>()
     val filterEntityTypes = mutableSetOf<EntityType>()
     val filterRuleNames = mutableSetOf<String>()
@@ -82,7 +82,7 @@ class DebugManager {
             return
         }
 
-        timerTask!!.cancelTask()
+        timerTask!!.cancel()
         this.timerTask = null
     }
 
@@ -99,8 +99,9 @@ class DebugManager {
 
         if (!this.isTimerEnabled) {
             this.isTimerEnabled = true
-            val wrapper = SchedulerWrapper { this.timerLoop() }
-            this.timerTask = wrapper.runTaskTimerAsynchronously(20, 20)
+            Bukkit.getAsyncScheduler().runAtFixedRate(LevelledMobs.instance, {
+                this.timerLoop()
+            }, 20, 20, TimeUnit.MILLISECONDS)
         }
     }
 

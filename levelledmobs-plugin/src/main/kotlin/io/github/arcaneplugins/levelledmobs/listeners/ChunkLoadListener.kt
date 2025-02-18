@@ -1,10 +1,10 @@
 package io.github.arcaneplugins.levelledmobs.listeners
 
+import com.molean.folia.adapter.Folia
 import io.github.arcaneplugins.levelledmobs.LevelledMobs
 import io.github.arcaneplugins.levelledmobs.misc.QueueItem
 import io.github.arcaneplugins.levelledmobs.util.Utils
 import io.github.arcaneplugins.levelledmobs.wrappers.LivingEntityWrapper
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerWrapper
 import org.bukkit.entity.LivingEntity
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
@@ -45,23 +45,19 @@ class ChunkLoadListener : Listener {
 
     private fun checkEntity(livingEntity: LivingEntity, event: ChunkLoadEvent) {
         val lmEntity = LivingEntityWrapper.getInstance(livingEntity)
-        val wrapper = SchedulerWrapper(livingEntity){
+        lmEntity.buildCacheIfNeeded()
+        lmEntity.inUseCount.getAndIncrement()
+        Folia.runSync({
             if (LevelledMobs.instance.levelManager.doCheckMobHash && Utils.checkIfMobHashChanged(lmEntity)) {
                 lmEntity.reEvaluateLevel = true
                 lmEntity.isRulesForceAll = true
                 lmEntity.wasPreviouslyLevelled = lmEntity.isLevelled
             } else if (lmEntity.isLevelled) {
                 lmEntity.free()
-                return@SchedulerWrapper
+                return@runSync
             }
-
             LevelledMobs.instance.mobsQueueManager.addToQueue(QueueItem(lmEntity, event))
             lmEntity.free()
-        }
-
-        lmEntity.buildCacheIfNeeded()
-        lmEntity.inUseCount.getAndIncrement()
-        wrapper.runDirectlyInBukkit = true
-        wrapper.run()
+        }, livingEntity)
     }
 }

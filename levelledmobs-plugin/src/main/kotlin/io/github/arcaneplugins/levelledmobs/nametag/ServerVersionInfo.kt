@@ -191,16 +191,7 @@ class ServerVersionInfo {
 
     val isRunningFolia: Boolean
         get() {
-            if (this._isRunningFolia == null) {
-                try {
-                    Class.forName("io.papermc.paper.threadedregions.RegionizedServer")
-                    this._isRunningFolia = true
-                } catch (ignored: ClassNotFoundException) {
-                    this._isRunningFolia = false
-                }
-            }
-
-            return this._isRunningFolia!!
+            return false
         }
 
     val isNMSVersionValid: Boolean

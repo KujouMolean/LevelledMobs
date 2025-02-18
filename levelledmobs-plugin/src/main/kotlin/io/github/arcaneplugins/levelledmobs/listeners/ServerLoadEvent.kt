@@ -1,9 +1,9 @@
 package io.github.arcaneplugins.levelledmobs.listeners
 
+import com.molean.folia.adapter.SchedulerContext
 import io.github.arcaneplugins.levelledmobs.LevelledMobs
 import io.github.arcaneplugins.levelledmobs.MainCompanion
 import io.github.arcaneplugins.levelledmobs.managers.ExternalCompatibilityManager
-import io.github.arcaneplugins.levelledmobs.wrappers.SchedulerWrapper
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
@@ -21,12 +21,13 @@ class ServerLoadEvent : Listener {
         MainCompanion.instance.hasFinishedLoading = true
         val lmItemsParser = LevelledMobs.instance.customDropsHandler.lmItemsParser
         if (lmItemsParser != null){
-            val scheduler = SchedulerWrapper {
+            SchedulerContext.ofGlobal().runTaskLater(LevelledMobs.instance, Runnable {
                 lmItemsParser.processPendingItems()
-                if (MainCompanion.instance.showCustomDrops)
+                if (MainCompanion.instance.showCustomDrops) {
                     LevelledMobs.instance.customDropsHandler.customDropsParser.showCustomDropsDebugInfo(null)
-            }
-            scheduler.runDelayed(10L)
+                }
+            }, 10L)
+
         }
         else if (MainCompanion.instance.showCustomDrops){
             LevelledMobs.instance.customDropsHandler.customDropsParser.showCustomDropsDebugInfo(null)
