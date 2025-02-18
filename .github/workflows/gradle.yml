@@ -62,11 +62,11 @@ jobs:
     - name: Upload LevelledMobs artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: Package
+        name: LevelledMobs.jar
         path: workspace/LevelledMobs/levelledmobs-plugin/build/libs/LevelledMobs*.jar
 
     - name: Upload FoliaAdapter artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: Package
+        name: FoliaAdapter.jar
         path: workspace/FoliaAdapter/build/libs/FoliaAdapter*.jar
