@@ -94,10 +94,10 @@ class LevelManager : LevelInterface2 {
     private var nametagAutoUpdateTask: ScheduledTask? = null
     private var nametagTimerTask: ScheduledTask? = null
     private val asyncRunningCount = AtomicInteger()
-    private val entitiesPerPlayer = mutableMapOf<Player, MutableList<Entity>>()
+    private val entitiesPerPlayer = ConcurrentHashMap<Player, MutableList<Entity>>()
     private val entitiesPerPlayerLock = Any()
-    private val attributeStringList = mutableMapOf<String, Attribute>()
-    private val strategyPlaceholders = mutableMapOf<String, StrategyType>()
+    private val attributeStringList = ConcurrentHashMap<String, Attribute>()
+    private val strategyPlaceholders = ConcurrentHashMap<String, StrategyType>()
     /**
      * The following entity types *MUST NOT* be levellable.
      */

@@ -88,10 +88,7 @@ class MobsQueueManager {
         val queueSize = getNumberQueued()
         val stopAll = queueSize >= 1000
         var threadsNeeded = 0
-        val enumerator = queueTasks.iterator()
-
-        while (enumerator.hasNext()) {
-            val taskEntry = enumerator.next()
+        for (taskEntry in ArrayList(queueTasks)) {
             if (!stopAll && (!taskEntry.isCancelled || taskEntry.executionState == ScheduledTask.ExecutionState.RUNNING)) continue
             val status = if (taskEntry.isCancelled) "cancelled"
             else if (!stopAll) "not running"
@@ -99,11 +96,10 @@ class MobsQueueManager {
 
             Log.war("Restarting Nametag Queue Manager task, status was $status")
             taskEntry.cancel()
-            enumerator.remove()
+            queueTasks.remove(taskEntry)
             threadsCount.getAndDecrement()
             threadsNeeded++
         }
-
         if (threadsNeeded == 0) return
 
         for (i in 0..<threadsNeeded)
