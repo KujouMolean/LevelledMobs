@@ -24,17 +24,9 @@ jobs:
     - name: Set up JDK
       uses: actions/setup-java@v4
       with:
-        java-version: '21'
+        java-version: '17'
         distribution: 'zulu'
-  
-
-
-    - name: checkout KujouMolean/FoliaAdapter
-      uses: actions/checkout@v4
-      with:
-        repository: 'KujouMolean/FoliaAdapter'
-        path: 'workspace/FoliaAdapter'
-
+        
     - name: run publishToMavenLocal at FoliaAdapter
       run: cd workspace/FoliaAdapter && sudo chmod +x ./gradlew && ./gradlew publishToMavenLocal
       
@@ -51,7 +43,19 @@ jobs:
       uses: actions/checkout@v4
       with:
         path: 'workspace/LevelledMobs'
-
+        
+    - name: Set up JDK
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'zulu'
+  
+    - name: checkout KujouMolean/FoliaAdapter
+      uses: actions/checkout@v4
+      with:
+        repository: 'KujouMolean/FoliaAdapter'
+        path: 'workspace/FoliaAdapter'
+        
     - name: build LevelledMobs
       run: cd workspace/LevelledMobs && sudo chmod +x ./gradlew && ./gradlew build
 
