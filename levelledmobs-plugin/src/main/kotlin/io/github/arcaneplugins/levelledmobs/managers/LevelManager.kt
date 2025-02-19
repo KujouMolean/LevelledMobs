@@ -1126,7 +1126,8 @@ class LevelManager : LevelInterface2 {
 
         val task = FoliaBatchEntityTask.create()
         for (player in entitiesPerPlayer.keys) {
-            for (entity in entitiesPerPlayer[player]!!) {
+            val entities = entitiesPerPlayer[player] ?: continue
+            for (entity in entities) {
                 task.task(player) { t -> checkEntity(t, player, entityToPlayer) }
             }
         }
