@@ -1101,16 +1101,17 @@ class LevelManager : LevelInterface2 {
         var checkDistance = entitySpawnListener.mobCheckDistance.toDouble()
 
         for (player in Bukkit.getOnlinePlayers()) {
+            val locationClone = player.location.clone()
             Folia.runSync({
                 run {
-                    MiscUtils.retrieveLoadedChunkRadius(player.location, checkDistance)
-                    val entities = player.getNearbyEntities(
+                    MiscUtils.retrieveLoadedChunkRadius(locationClone, checkDistance)
+                    val entities = locationClone.getNearbyEntities(
                         checkDistance, checkDistance, checkDistance
                     )
-                    entitiesPerPlayer[player] = entities
+                    entitiesPerPlayer[player] = ArrayList(entities)
                     runNametagCheckASync()
                 }
-            }, player)
+            }, locationClone)
         }
     }
 
