@@ -1104,7 +1104,7 @@ class LevelManager : LevelInterface2 {
             val locationClone = player.location.clone()
             Folia.runSync({
                 run {
-                    MiscUtils.retrieveLoadedChunkRadius(locationClone, checkDistance)
+                    checkDistance = MiscUtils.retrieveLoadedChunkRadius(locationClone, checkDistance)
                     val entities = locationClone.getNearbyEntities(
                         checkDistance, checkDistance, checkDistance
                     )
