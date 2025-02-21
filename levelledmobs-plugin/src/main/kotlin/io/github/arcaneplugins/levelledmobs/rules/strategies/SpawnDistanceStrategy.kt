@@ -50,7 +50,7 @@ class SpawnDistanceStrategy : LevellingStrategy, Cloneable{
         }
 
         val bufferDistance = if (this.bufferDistance == null) 0f else bufferDistance!!
-        val distanceFromSpawn = spawnLocation.distance(lmEntity.location).toFloat()
+        val distanceFromSpawn = spawnLocation.distance(lmEntity.livingEntity.location).toFloat()
         val levelDistance = (distanceFromSpawn - bufferDistance).coerceAtLeast(0f)
         val variance = LevelledMobs.instance.rulesManager.getRuleMaxRandomVariance(lmEntity)
         var varianceAdded = 0
